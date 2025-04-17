@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: emma-twin
+    env: python
+    buildCommand: ""
+    startCommand: python chat_lili_web.py
+    plan: free
