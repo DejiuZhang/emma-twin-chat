@@ -226,8 +226,8 @@ Please respond in a realistic way. At the end of your message, include:
 Emotion: [emotion label]
 Action: [non-verbal cue or gesture]
 """
-# 表情头像映射
-emoji_avatar_map = {
+# Avatar map for Emma's emotions (internal detection)
+avatar_map = {
     "neutral": "🙂",
     "nervous": "😬",
     "sad": "😔",
@@ -235,10 +235,9 @@ emoji_avatar_map = {
     "angry": "😠"
 }
 
-# 简单情绪检测
 def detect_emotion(text):
     text = text.lower()
-    if "sorry" in text or "tired" in text or "don’t feel" in text:
+    if "sorry" in text or "tired" in text:
         return "sad"
     elif "i don’t know" in text or "ugh" in text:
         return "nervous"
@@ -249,7 +248,6 @@ def detect_emotion(text):
     else:
         return "neutral"
 
-# 非语言动作 cues
 def detect_action(text):
     if "..." in text or "i don’t know" in text:
         return "(shrugs)"
@@ -259,13 +257,17 @@ def detect_action(text):
         return "(fidgets)"
     return ""
 
-# 主聊天函数
-def chat_with_emma(message, history):
-    messages = [{"role": "system", "content": system_prompt_base}]
+def chat_with_emma(user_emotion, user_tone, message, history):
+    system_prompt = system_prompt_base
+    system_prompt += f"\nThe user seems to be feeling {user_emotion} and is speaking in a {user_tone} tone."
+
+    messages = [{"role": "system", "content": system_prompt}]
     for user_msg, emma_reply in history:
         messages.append({"role": "user", "content": user_msg})
         messages.append({"role": "assistant", "content": emma_reply})
-    messages.append({"role": "user", "content": message})
+    
+    user_message_tagged = f"[{user_emotion}, {user_tone}]: {message}"
+    messages.append({"role": "user", "content": user_message_tagged})
 
     try:
         response = client.chat.completions.create(
@@ -273,32 +275,39 @@ def chat_with_emma(message, history):
             messages=messages
         )
         reply = response.choices[0].message.content.strip()
-
-        # 自动情绪识别和动作 cue
-        detected_emotion = detect_emotion(reply)
-        detected_action = detect_action(reply)
-        avatar = emoji_avatar_map.get(detected_emotion, "🙂")
-
-        full_reply = f"{avatar} {reply}\n\n{detected_action}"
-        return full_reply
+        emotion = detect_emotion(reply)
+        gesture = detect_action(reply)
+        avatar = avatar_map.get(emotion, "🙂")
+        return f"{avatar} {reply}\n\n{gesture}"
     except Exception as e:
         print("❌ Error:", e)
         return "Emma is too overwhelmed to answer right now."
 
-# 🌸 Gradio UI
+# Gradio UI
 with gr.Blocks(theme="soft") as demo:
     gr.Markdown("## Talk to Emma 👧 — A 15-year-old digital twin")
-    chatbot = gr.Chatbot(label="Emma", height=400)
-    msg = gr.Textbox(placeholder="Say something to Emma...")
-    submit = gr.Button("Send")
 
+    chatbot = gr.Chatbot(label="Emma")
+    emotion_input = gr.Dropdown(
+        choices=["neutral", "nervous", "sad", "curious", "angry", "frustrated", "anxious"],
+        value="neutral",
+        label="Your Emotion"
+    )
+    tone_input = gr.Dropdown(
+        choices=["gentle", "reassuring", "direct", "sarcastic", "tense", "cheerful"],
+        value="gentle",
+        label="Your Tone"
+    )
+    msg = gr.Textbox(placeholder="Type your message...")
+    submit = gr.Button("Send")
     state = gr.State([])
 
-    def respond(user_input, chat_history):
-        response = chat_with_emma(user_input, chat_history)
-        chat_history.append((user_input, response))
+    def respond(user_input, chat_history, user_emotion, user_tone):
+        response = chat_with_emma(user_emotion, user_tone, user_input, chat_history)
+        chat_history.append((f"({user_emotion}, {user_tone}): {user_input}", response))
         return chat_history, ""
 
-    submit.click(fn=respond, inputs=[msg, state], outputs=[chatbot, msg])
+    submit.click(fn=respond, inputs=[msg, state, emotion_input, tone_input], outputs=[chatbot, msg])
 
-demo.launch(server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))
+# For Render deployment
+    demo.launch(server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))
