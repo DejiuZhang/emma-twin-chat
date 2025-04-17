@@ -210,7 +210,21 @@ Seriously, it’s fine. I’m good.
 
 """
 
-def chat_with_lili(message, history):
+# 表情头像映射
+emoji_avatar_map = {
+    "neutral": "🙂",
+    "nervous": "😬",
+    "sad": "😔",
+    "curious": "🧐",
+    "angry": "😠"
+}
+
+def chat_with_lili(emotion_input, message, history):
+    # 附加情绪控制到 prompt（可选）
+    system_prompt = system_prompt_base
+    if emotion_input and emotion_input != "default":
+        system_prompt += f"\nRespond with the emotional tone: {emotion_input}."
+
     messages = [{"role": "system", "content": system_prompt}]
     for user, bot in history:
         messages.append({"role": "user", "content": user})
@@ -219,18 +233,59 @@ def chat_with_lili(message, history):
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o",  
+            model="gpt-4o",
             messages=messages
         )
-        reply = response.choices[0].message.content
-        return reply
+        reply = response.choices[0].message.content.strip()
+
+        # 🌟 简单 emotion 和动作检测（可优化）
+        detected_emotion = detect_emotion(reply)
+        detected_action = detect_action(reply)
+        avatar = emoji_avatar_map.get(detected_emotion, "🙂")
+
+        # 组合最终显示
+        reply_with_avatar = f"{avatar} {reply}\n\n{detected_action}"
+        return reply_with_avatar
     except Exception as e:
         print("❌ Error:", e)
-        return "Something went wrong. Lili is too upset to respond now."
+        return "Something went wrong. Emma is too upset to respond now."
 
-gr.ChatInterface(
-    fn=chat_with_lili,
-    title="Talk to Emma 👧 ",
-    description="The year is 2015. You can talk to Emma, a 15-year-old girl",
-    theme="soft"
-).launch(server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))
+# 模拟简单情绪识别
+def detect_emotion(text):
+    text = text.lower()
+    if "sorry" in text or "tired" in text or "don’t feel" in text:
+        return "sad"
+    elif "i don’t know" in text or "ugh" in text:
+        return "nervous"
+    elif "what" in text or "why" in text:
+        return "curious"
+    elif "leave me alone" in text or "whatever" in text:
+        return "angry"
+    else:
+        return "neutral"
+
+# 模拟动作 cues（可升级为 prompt 输出）
+def detect_action(text):
+    if "..." in text or "i don’t know" in text:
+        return "(shrugs)"
+    if "whatever" in text:
+        return "(looks away)"
+    if "i just feel" in text:
+        return "(fidgets)"
+    return ""
+
+# Gradio 界面
+with gr.Blocks(theme="soft") as demo:
+    emotion_choice = gr.Dropdown(
+        choices=["default", "neutral", "nervous", "sad", "curious", "angry"],
+        value="default",
+        label="Emotion Control (optional)"
+    )
+    gr.ChatInterface(
+        fn=chat_with_lili,
+        inputs=[emotion_choice],
+        title="Talk to Emma 👧 ",
+        description="The year is 2015. You can talk to Emma, a 15-year-old girl with realistic emotion and behavior.",
+    )
+
+demo.launch(server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))
