@@ -68,7 +68,6 @@ You’ve got a voice. It’s okay to use it.
 
 Emma:
 Yeah… maybe someday.
-
 ---------
 
 Mom:
