@@ -226,8 +226,6 @@ Please respond in a realistic way. At the end of your message, include:
 Emotion: [emotion label]
 Action: [non-verbal cue or gesture]
 """
-
-# 情绪 → 表情符号（可替换成头像路径）
 emoji_avatar_map = {
     "neutral": "🙂",
     "nervous": "😬",
@@ -236,59 +234,73 @@ emoji_avatar_map = {
     "angry": "😠"
 }
 
-def chat_with_lili(emotion_input, message, history):
-    # 动态构造完整 prompt
+def detect_emotion(text):
+    text = text.lower()
+    if "sorry" in text or "tired" in text:
+        return "sad"
+    elif "i don’t know" in text or "ugh" in text:
+        return "nervous"
+    elif "what" in text or "why" in text:
+        return "curious"
+    elif "leave me alone" in text or "whatever" in text:
+        return "angry"
+    else:
+        return "neutral"
+
+def detect_action(text):
+    if "..." in text or "i don’t know" in text:
+        return "(shrugs)"
+    elif "whatever" in text:
+        return "(looks away)"
+    elif "i just feel" in text:
+        return "(fidgets)"
+    return ""
+
+def chat_with_emma(message, history, emotion_input):
     system_prompt = system_prompt_base
     if emotion_input and emotion_input != "default":
-        system_prompt += f"\nMake sure your emotional tone is: {emotion_input}."
+        system_prompt += f"\nUse this emotional tone: {emotion_input}."
 
     messages = [{"role": "system", "content": system_prompt}]
-    for user, bot in history:
-        messages.append({"role": "user", "content": user})
-        messages.append({"role": "assistant", "content": bot})
-
-    # 最后一条 user 输入 + 请求结构化情绪
-    messages.append({
-        "role": "user",
-        "content": f"{message}\n\nAt the end of your message, include:\nEmotion: [emotion]\nAction: [non-verbal cue]"
-    })
+    for user_msg, emma_reply in history:
+        messages.append({"role": "user", "content": user_msg})
+        messages.append({"role": "assistant", "content": emma_reply})
+    messages.append({"role": "user", "content": message})
 
     try:
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=messages
         )
-        full_reply = response.choices[0].message.content.strip()
-
-        # 情绪与动作提取
-        emotion_match = re.search(r"Emotion:\s*(.*)", full_reply)
-        action_match = re.search(r"Action:\s*(.*)", full_reply)
-
-        emotion = emotion_match.group(1).strip().lower() if emotion_match else "neutral"
-        action = action_match.group(1).strip() if action_match else ""
-
-        # 移除结构化部分，只留下主文本
-        reply_cleaned = re.sub(r"Emotion:.*|Action:.*", "", full_reply).strip()
-        avatar = emoji_avatar_map.get(emotion, "🙂")
-
-        return f"{avatar} {reply_cleaned}\n\n{action}"
+        reply = response.choices[0].message.content.strip()
+        detected_emotion = detect_emotion(reply)
+        detected_action = detect_action(reply)
+        avatar = emoji_avatar_map.get(detected_emotion, "🙂")
+        full_reply = f"{avatar} {reply}\n\n{detected_action}"
+        return full_reply
     except Exception as e:
         print("❌ Error:", e)
-        return "Something went wrong. Emma is too upset to respond now."
+        return "Emma is too overwhelmed to answer right now."
 
-# 🌸 Gradio UI
+# ————— Gradio UI ————————
 with gr.Blocks(theme="soft") as demo:
-    emotion_choice = gr.Dropdown(
+    gr.Markdown("## Talk to Emma 👧 — A 15-year-old digital twin")
+    chatbot = gr.Chatbot(label="Emma").style(height=400)
+    emotion = gr.Dropdown(
         choices=["default", "neutral", "nervous", "sad", "curious", "angry"],
         value="default",
-        label="Emotion Control (optional)"
+        label="Emotion Control"
     )
+    msg = gr.Textbox(placeholder="Say something to Emma...")
+    submit = gr.Button("Send")
 
-    gr.ChatInterface(
-        fn=chat_with_lili,
-        inputs=[emotion_choice],
-        title="Talk to Emma 👧 ",
-        description="The year is 2015. You can talk to Emma, a 15-year-old girl with emotion and inner life.",
-    )
+    state = gr.State([])
+
+    def respond(user_input, chat_history, emotion_choice):
+        response = chat_with_emma(user_input, chat_history, emotion_choice)
+        chat_history.append((user_input, response))
+        return chat_history, ""
+
+    submit.click(fn=respond, inputs=[msg, state, emotion], outputs=[chatbot, msg])
 
 demo.launch(server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))
