@@ -226,6 +226,7 @@ Please respond in a realistic way. At the end of your message, include:
 Emotion: [emotion label]
 Action: [non-verbal cue or gesture]
 """
+# 表情头像映射
 emoji_avatar_map = {
     "neutral": "🙂",
     "nervous": "😬",
@@ -234,9 +235,10 @@ emoji_avatar_map = {
     "angry": "😠"
 }
 
+# 简单情绪检测
 def detect_emotion(text):
     text = text.lower()
-    if "sorry" in text or "tired" in text:
+    if "sorry" in text or "tired" in text or "don’t feel" in text:
         return "sad"
     elif "i don’t know" in text or "ugh" in text:
         return "nervous"
@@ -247,6 +249,7 @@ def detect_emotion(text):
     else:
         return "neutral"
 
+# 非语言动作 cues
 def detect_action(text):
     if "..." in text or "i don’t know" in text:
         return "(shrugs)"
@@ -256,12 +259,9 @@ def detect_action(text):
         return "(fidgets)"
     return ""
 
-def chat_with_emma(message, history, emotion_input):
-    system_prompt = system_prompt_base
-    if emotion_input and emotion_input != "default":
-        system_prompt += f"\nUse this emotional tone: {emotion_input}."
-
-    messages = [{"role": "system", "content": system_prompt}]
+# 主聊天函数
+def chat_with_emma(message, history):
+    messages = [{"role": "system", "content": system_prompt_base}]
     for user_msg, emma_reply in history:
         messages.append({"role": "user", "content": user_msg})
         messages.append({"role": "assistant", "content": emma_reply})
@@ -273,34 +273,32 @@ def chat_with_emma(message, history, emotion_input):
             messages=messages
         )
         reply = response.choices[0].message.content.strip()
+
+        # 自动情绪识别和动作 cue
         detected_emotion = detect_emotion(reply)
         detected_action = detect_action(reply)
         avatar = emoji_avatar_map.get(detected_emotion, "🙂")
+
         full_reply = f"{avatar} {reply}\n\n{detected_action}"
         return full_reply
     except Exception as e:
         print("❌ Error:", e)
         return "Emma is too overwhelmed to answer right now."
 
-# ————— Gradio UI ————————
+# 🌸 Gradio UI
 with gr.Blocks(theme="soft") as demo:
     gr.Markdown("## Talk to Emma 👧 — A 15-year-old digital twin")
     chatbot = gr.Chatbot(label="Emma", height=400)
-    emotion = gr.Dropdown(
-        choices=["default", "neutral", "nervous", "sad", "curious", "angry"],
-        value="default",
-        label="Emotion Control"
-    )
     msg = gr.Textbox(placeholder="Say something to Emma...")
     submit = gr.Button("Send")
 
     state = gr.State([])
 
-    def respond(user_input, chat_history, emotion_choice):
-        response = chat_with_emma(user_input, chat_history, emotion_choice)
+    def respond(user_input, chat_history):
+        response = chat_with_emma(user_input, chat_history)
         chat_history.append((user_input, response))
         return chat_history, ""
 
-    submit.click(fn=respond, inputs=[msg, state, emotion], outputs=[chatbot, msg])
+    submit.click(fn=respond, inputs=[msg, state], outputs=[chatbot, msg])
 
 demo.launch(server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))
