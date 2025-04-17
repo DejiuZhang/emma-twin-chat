@@ -285,7 +285,7 @@ def chat_with_emma(message, history, emotion_input):
 # ————— Gradio UI ————————
 with gr.Blocks(theme="soft") as demo:
     gr.Markdown("## Talk to Emma 👧 — A 15-year-old digital twin")
-    chatbot = gr.Chatbot(label="Emma").style(height=400)
+    chatbot = gr.Chatbot(label="Emma", height=400)
     emotion = gr.Dropdown(
         choices=["default", "neutral", "nervous", "sad", "curious", "angry"],
         value="default",
